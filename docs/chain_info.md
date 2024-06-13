@@ -8,7 +8,7 @@ The Chain object also contains data which is used specifically in the context of
 
 And lastly, the Chain object also contains URL templates that indicate the frontend apps how to parse and compose URLs to block explorers. This will be discussed in more detail later on.
 
-At any point, if you see a value that you are unsure how to supply, just look at what's available in [production](https://safe-gateway.klaytn.foundation/cgw/v1/chains) and change the values as you see fit.
+At any point, if you see a value that you are unsure how to supply, just look at what's available in [production](https://safe-gateway.kaia.io/cgw/v1/chains) and change the values as you see fit.
 
 These values are meant to be provided in the admin panel `http://localhost:8000/cfg/admin` of the Safe Config Service (CFG)
 
@@ -22,7 +22,6 @@ In order to achieve this, the CFG has 2 fields:
 - `transaction_service`
 
 These two fields are required, because in a production setup, you would have your services potentically located in the same Virtual Private Cloud (VPC) setup. Then you could go as far as making the TXS private and hide it from requests coming from outside your cluster.
-Should this be the case, you can set the value to `false` of [this](https://github.com/gnosis/safe-client-gateway/blob/6e3fa0d5770d185bb0cbe27185d6b33641143b2e/.env.sample#L37) env var in your CGW `.env` [file](../container_env_files/cgw.env).
 For the purpose of this guide we will simply set these values to the same value:
 
 ```javascript

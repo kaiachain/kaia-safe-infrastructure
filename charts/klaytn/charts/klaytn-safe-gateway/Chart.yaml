@@ -1,8 +1,0 @@
-apiVersion: v2
-name: klaytn-safe-gateway
-version: 1.0.0
-dependencies:
-  - name: redis
-    version: 17.3.6
-    repository: https://charts.bitnami.com/bitnami
-    condition: redis.enabled
