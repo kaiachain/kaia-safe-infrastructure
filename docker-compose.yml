@@ -23,6 +23,14 @@ x-healthcheck-celery-template: &celeryhealthcheck
     timeout: 30s
     retries: 3
 
+x-healthcheck-rabbitmq-template: &rabbitmqhealthcheck
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 15s
+    timeout: 30s
+    retries: 3
+    start_period: 15s
+
 services:
   # Common nginx and database
   nginx:
@@ -80,6 +88,7 @@ services:
 
   txs-rabbitmq:
     image: rabbitmq:alpine
+    <<: *rabbitmqhealthcheck
 
   txs-worker-indexer: &txs-worker
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
@@ -94,8 +103,9 @@ services:
         condition: service_healthy
       txs-redis:
         condition: service_healthy
+      txs-rabbitmq:
+        condition: service_healthy
     command: docker/web/celery/worker/run.sh
-    <<: *celeryhealthcheck
 
   txs-worker-contracts-tokens:
     <<: *txs-worker
@@ -104,7 +114,7 @@ services:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
       txs-worker-indexer:
-        condition: service_healthy
+        condition: service_started
 
   txs-worker-notifications-webhooks:
     <<: *txs-worker
@@ -113,7 +123,7 @@ services:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
       txs-worker-indexer:
-        condition: service_healthy
+        condition: service_started
 
   txs-web:
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
@@ -122,7 +132,11 @@ services:
     environment:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
-      txs-worker-indexer:
+      txs-db:
+        condition: service_healthy
+      txs-redis:
+        condition: service_healthy
+      txs-rabbitmq:
         condition: service_healthy
     working_dir: /app
     volumes:
@@ -135,6 +149,8 @@ services:
       txs-db:
         condition: service_healthy
       txs-redis:
+        condition: service_healthy
+      txs-rabbitmq:
         condition: service_healthy
     command: docker/web/celery/scheduler/run.sh
 
@@ -164,22 +180,23 @@ services:
     depends_on:
       cgw-redis:
         condition: service_healthy
+      cgw-db:
+        condition: service_healthy
 
   ui:
     image: safeglobal/safe-wallet-web:${UI_VERSION}
     env_file:
       - container_env_files/ui.env
+    environment:
+      # Startup runs a Next.js build; the default V8 heap is often too small in Docker.
+      - NODE_OPTIONS=--max-old-space-size=16384
+ 
     expose:
       - 8080
 
   general-rabbitmq:
     image: rabbitmq:alpine
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 15s
-      timeout: 30s
-      retries: 3
-      start_period: 15s
+    <<: *rabbitmqhealthcheck
 
   events-web:
     image: safeglobal/safe-events-service:${EVENTS_VERSION}
