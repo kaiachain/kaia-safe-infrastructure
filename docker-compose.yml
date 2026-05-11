@@ -142,6 +142,20 @@ services:
     volumes:
       - nginx-shared-txs:/nginx
     command: docker/web/run_web.sh
+    expose:
+      - "8888"
+
+  # Enriches TXS contract JSON so CGW Zod (ContractSchema) accepts local Transaction Service responses.
+  decoder-shim:
+    build: ./docker/decoder-shim
+    environment:
+      TXS_UPSTREAM_BASE_URL: http://txs-web:8888
+      PORT: "3001"
+    depends_on:
+      txs-web:
+        condition: service_started
+    expose:
+      - "3001"
 
   txs-scheduler:
     <<: *txs-worker
@@ -182,6 +196,8 @@ services:
         condition: service_healthy
       cgw-db:
         condition: service_healthy
+      decoder-shim:
+        condition: service_started
 
   ui:
     image: safeglobal/safe-wallet-web:${UI_VERSION}
