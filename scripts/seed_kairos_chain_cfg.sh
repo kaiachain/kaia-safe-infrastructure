@@ -9,7 +9,7 @@
 # Env overrides:
 #   TXS_URI            default http://nginx:8000/txs
 #   RPC_URI            Kaia Kairos HTTPS RPC for cfg `rpc_uri` / `public_rpc_uri` / `safe_apps_rpc_uri`
-#   EIP3770_SHORT_NAME default kairos (must be unique across chains)
+#   EIP3770_SHORT_NAME default Kairos (must be unique across chains)
 #
 # After running, verify:
 #   curl -s "http://localhost:${REVERSE_PROXY_PORT:-8000}/cfg/api/v1/chains/1001/" | jq .
@@ -24,14 +24,15 @@ cd "$ROOT_DIR"
 
 TXS_URI="${TXS_URI:-http://nginx:8000/txs}"
 RPC_URI="${RPC_URI:-https://public-en-kairos.node.kaia.io}"
-EIP3770_SHORT_NAME="${EIP3770_SHORT_NAME:-kairos}"
+EIP3770_SHORT_NAME="${EIP3770_SHORT_NAME:-Kairos}"
 
-export TXS_URI RPC_URI EIP3770_SHORT_NAME
-
-docker compose exec -T cfg-web python src/manage.py shell <<'PY'
+docker compose exec -T \
+  -e TXS_URI="${TXS_URI}" \
+  -e RPC_URI="${RPC_URI}" \
+  -e EIP3770_SHORT_NAME="${EIP3770_SHORT_NAME}" \
+  cfg-web python src/manage.py shell <<'PY'
 import os
 import base64
-from decimal import Decimal
 
 from django.core.files.base import ContentFile
 
@@ -46,7 +47,8 @@ SAFE_L2_SINGLETON = "0xEdd160fEBBD92E350D4D398fb636302fccd67C7e"
 PROXY_FACTORY = "0x14F2982D601c9458F93bd70B218933A6f8165e7b"
 MULTI_SEND = "0x218543288004CD07832472D464648173c77D7eB7"
 MULTI_SEND_CALL_ONLY = "0xA83c336B20401Af773B6219BA5027174338D1836"
-FALLBACK_HANDLER = "0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4"
+# CompatibilityFallbackHandler deployed on Kairos (verified via kaiascan.io).
+FALLBACK_HANDLER = "0x85a8ca358d388530ad0fb95d0cb89dd44fc242c3"
 SIGN_MESSAGE_LIB = "0x4FfeF8222648872B3dE295Ba1e49110E61f5b5aa"
 CREATE_CALL = "0x2Ef5ECfbea521449E4De05EDB1ce63B75eDA90B4"
 SIMULATE_TX_ACCESSOR = "0x07EfA797c55B5DdE3698d876b277aBb6B893654C"
@@ -60,10 +62,10 @@ def currency_png_content() -> ContentFile:
     return ContentFile(base64.b64decode(PNG_B64))
 
 defaults = dict(
-    relevance=500,
-    name="Kaia Kairos",
+    relevance=100,
+    name="Kairos",
     short_name=SHORT_NAME,
-    description="Kaia Kairos testnet",
+    description="Kaia Testnet",
     l2=True,
     is_testnet=True,
     zk=False,
@@ -76,8 +78,8 @@ defaults = dict(
     block_explorer_uri_address_template="https://kairos.kaiascan.io/address/{{address}}",
     block_explorer_uri_tx_hash_template="https://kairos.kaiascan.io/tx/{{txHash}}",
     block_explorer_uri_api_template=(
-        "https://kairos-oapi.kaiascan.io/api?module={{module}}&action={{action}}&address={{address}}"
-        "&apikey={{apiKey}}"
+        "https://kairos.kaiascan.io/api?module={{module}}&action={{action}}&address={{address}}"
+        "&apiKey={{apiKey}}"
     ),
     currency_name="KAIA",
     currency_symbol="KAIA",
@@ -105,8 +107,9 @@ chain.refresh_from_db()
 if not chain.currency_logo_uri:
     chain.currency_logo_uri.save("kaia_currency.png", currency_png_content(), save=True)
 
+# Kaia uses EIP-1559 dynamic gas pricing (feature flag EIP1559 is enabled).
+# Remove any fixed gas price that may have been inserted by a previous seed run.
 GasPrice.objects.filter(chain=chain).delete()
-GasPrice.objects.create(chain=chain, fixed_wei_value=25 * 10**9, rank=100, gwei_factor=Decimal(1))
 
 # Ensure Safe Wallet Web feature flags are present on the chain and registered
 # with the WALLET_WEB service.
