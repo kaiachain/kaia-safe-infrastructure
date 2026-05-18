@@ -35,7 +35,7 @@ from decimal import Decimal
 
 from django.core.files.base import ContentFile
 
-from chains.models import Chain, GasPrice
+from chains.models import Chain, Feature, GasPrice
 
 TXS_URI = os.environ["TXS_URI"]
 RPC_URI = os.environ["RPC_URI"]
@@ -108,6 +108,61 @@ if not chain.currency_logo_uri:
 GasPrice.objects.filter(chain=chain).delete()
 GasPrice.objects.create(chain=chain, fixed_wei_value=25 * 10**9, rank=100, gwei_factor=Decimal(1))
 
+# Ensure Safe Wallet Web feature flags are present on the chain and registered
+# with the WALLET_WEB service.
+#
+# The v2 chains endpoint (/v2/chains/{serviceKey}) filters features by both:
+#   1. chains M2M — the feature must be linked to this chain
+#   2. services M2M — the feature must be linked to the target service
+#
+# Without the services link the v2 endpoint returns features: [] even when the
+# feature is linked to the chain, causing the frontend to show a blank page.
+from chains.models import Service  # noqa: E402 (already imported Chain, Feature above)
+
+WALLET_FEATURES = [
+    "CONTRACT_INTERACTION",
+    "DOMAIN_LOOKUP",
+    "ERC721",
+    "ERC1155",
+    "SAFE_APPS",
+    "SPENDING_LIMIT",
+    "EIP1559",
+    "DEFAULT_TOKENS",
+    "NATIVE_WALLETCONNECT",
+    "COUNTERFACTUAL",
+    "MULTI_CHAIN_SAFE_CREATION",
+    "RECOVERY",
+    "MY_ACCOUNTS",
+    "WELCOME_ACCOUNTS_REDESIGN",
+    "SEND_FLOW",
+    "BATCHING",
+]
+
+wallet_svc, _ = Service.objects.get_or_create(
+    key="WALLET_WEB",
+    defaults={"name": "Safe Wallet Web", "description": "Browser wallet"},
+)
+
+existing_chain_keys = set(chain.feature_set.values_list("key", flat=True))
+existing_svc_keys = set(Feature.objects.filter(services=wallet_svc).values_list("key", flat=True))
+
+added_to_chain = []
+added_to_svc = []
+for key in WALLET_FEATURES:
+    feature, _ = Feature.objects.get_or_create(key=key)
+    if key not in existing_chain_keys:
+        feature.chains.add(chain)
+        added_to_chain.append(key)
+    if key not in existing_svc_keys:
+        feature.services.add(wallet_svc)
+        added_to_svc.append(key)
+
 verb = "created" if created else "updated"
 print(f"seed_kairos_chain_cfg: chain 1001 {verb} ({chain.name}, short_name={chain.short_name})")
+if added_to_chain:
+    print(f"seed_kairos_chain_cfg: linked to chain: {added_to_chain}")
+if added_to_svc:
+    print(f"seed_kairos_chain_cfg: linked to WALLET_WEB service: {added_to_svc}")
+if not added_to_chain and not added_to_svc:
+    print("seed_kairos_chain_cfg: all wallet features already present")
 PY
