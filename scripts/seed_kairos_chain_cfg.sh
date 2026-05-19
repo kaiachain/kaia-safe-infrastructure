@@ -25,6 +25,14 @@ cd "$ROOT_DIR"
 TXS_URI="${TXS_URI:-http://nginx:8000/txs}"
 RPC_URI="${RPC_URI:-https://public-en-kairos.node.kaia.io}"
 EIP3770_SHORT_NAME="${EIP3770_SHORT_NAME:-Kairos}"
+KAIA_LOGO_PATH="${ROOT_DIR}/scripts/assets/kaia_chain_logo.png"
+
+if [[ ! -f "${KAIA_LOGO_PATH}" ]]; then
+  echo "seed_kairos_chain_cfg: missing Kaia logo at ${KAIA_LOGO_PATH}" >&2
+  exit 1
+fi
+
+docker compose cp "${KAIA_LOGO_PATH}" cfg-web:/tmp/kaia_chain_logo.png
 
 docker compose exec -T \
   -e TXS_URI="${TXS_URI}" \
@@ -32,7 +40,7 @@ docker compose exec -T \
   -e EIP3770_SHORT_NAME="${EIP3770_SHORT_NAME}" \
   cfg-web python src/manage.py shell <<'PY'
 import os
-import base64
+import shutil
 
 from django.core.files.base import ContentFile
 
@@ -53,13 +61,57 @@ SIGN_MESSAGE_LIB = "0x4FfeF8222648872B3dE295Ba1e49110E61f5b5aa"
 CREATE_CALL = "0x2Ef5ECfbea521449E4De05EDB1ce63B75eDA90B4"
 SIMULATE_TX_ACCESSOR = "0x07EfA797c55B5DdE3698d876b277aBb6B893654C"
 
-PNG_B64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
-)
+KAIA_LOGO_CONTAINER_PATH = "/tmp/kaia_chain_logo.png"
+SHARED_MEDIA_ROOT = "/nginx/media"
 
 
-def currency_png_content() -> ContentFile:
-    return ContentFile(base64.b64decode(PNG_B64))
+def kaia_logo_bytes() -> bytes:
+    with open(KAIA_LOGO_CONTAINER_PATH, "rb") as logo_file:
+        return logo_file.read()
+
+
+def kaia_logo_content() -> ContentFile:
+    return ContentFile(kaia_logo_bytes())
+
+
+def write_logo_file(chain: Chain, field_name: str, filename: str) -> None:
+    """Overwrite chain/currency logo media with the bundled Kaia brand asset."""
+    field = getattr(chain, field_name)
+    if field:
+        field.delete(save=False)
+    field.save(filename, kaia_logo_content(), save=True)
+
+
+def sync_logos_to_nginx_volume(chain: Chain) -> list[str]:
+    """Mirror Django media files to the nginx volume using the same hashed filenames."""
+    from django.conf import settings
+
+    written = []
+    for field_name in ("chain_logo_uri", "currency_logo_uri"):
+        field = getattr(chain, field_name)
+        if not field or not os.path.isfile(field.path):
+            continue
+        dest = os.path.join(SHARED_MEDIA_ROOT, field.name)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(field.path, dest)
+        written.append(os.path.basename(field.name))
+
+    # Mirror any older hashed filenames still on disk (avoids 404s for cached chain config).
+    django_chain_media = os.path.join(settings.MEDIA_ROOT, "chains", str(chain.id))
+    if os.path.isdir(django_chain_media):
+        nginx_chain_media = os.path.join(SHARED_MEDIA_ROOT, "chains", str(chain.id))
+        os.makedirs(nginx_chain_media, exist_ok=True)
+        for filename in os.listdir(django_chain_media):
+            if not filename.endswith(".png"):
+                continue
+            src = os.path.join(django_chain_media, filename)
+            dest = os.path.join(nginx_chain_media, filename)
+            if os.path.isfile(src):
+                shutil.copy2(src, dest)
+                if filename not in written:
+                    written.append(filename)
+    return written
+
 
 defaults = dict(
     relevance=100,
@@ -104,8 +156,15 @@ defaults = dict(
 
 chain, created = Chain.objects.update_or_create(id=1001, defaults=defaults)
 chain.refresh_from_db()
-if not chain.currency_logo_uri:
-    chain.currency_logo_uri.save("kaia_currency.png", currency_png_content(), save=True)
+
+write_logo_file(chain, "chain_logo_uri", "chain_logo.png")
+write_logo_file(chain, "currency_logo_uri", "currency_logo.png")
+chain.refresh_from_db()
+logos_written = [
+    os.path.basename(chain.chain_logo_uri.name),
+    os.path.basename(chain.currency_logo_uri.name),
+]
+nginx_logos_written = sync_logos_to_nginx_volume(chain)
 
 # Kaia uses EIP-1559 dynamic gas pricing (feature flag EIP1559 is enabled).
 # Remove any fixed gas price that may have been inserted by a previous seed run.
@@ -168,4 +227,6 @@ if added_to_svc:
     print(f"seed_kairos_chain_cfg: linked to WALLET_WEB service: {added_to_svc}")
 if not added_to_chain and not added_to_svc:
     print("seed_kairos_chain_cfg: all wallet features already present")
+print(f"seed_kairos_chain_cfg: updated logo media: {logos_written}")
+print(f"seed_kairos_chain_cfg: synced logos to nginx volume: {nginx_logos_written}")
 PY
