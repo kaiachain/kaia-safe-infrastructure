@@ -28,6 +28,51 @@ fi
 echo "==> $(date +%H:%M:%S) ==> Starting containers..."
 docker compose up -d
 
+wait_for_service() {
+  local service="$1"
+  local max_attempts="${2:-60}"
+  local attempt=0
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    if docker compose ps --status running --services 2>/dev/null | grep -qx "$service"; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  echo "Timed out waiting for ${service} to start" >&2
+  return 1
+}
+
+wait_for_log_line() {
+  local service="$1"
+  local pattern="$2"
+  local label="$3"
+  local max_attempts="${4:-90}"
+  local attempt=0
+  echo "==> $(date +%H:%M:%S) ==> Waiting for ${label}..."
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    if docker compose logs "$service" 2>/dev/null | grep -q "$pattern"; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  echo "Timed out waiting for ${label}" >&2
+  echo "Hint: if migrations are stuck or the DB schema is inconsistent, run:" >&2
+  echo "      RESET_VOLUMES=1 ./scripts/run_locally.sh" >&2
+  return 1
+}
+
+echo "==> $(date +%H:%M:%S) ==> Waiting for cfg-web, txs-web, and txs-worker-indexer..."
+wait_for_service cfg-web
+wait_for_service txs-web
+wait_for_service txs-worker-indexer
+
+# cfg-web entrypoint runs migrate; txs-worker-indexer runs migrate when RUN_MIGRATIONS=1.
+# Do not run migrate from this script — concurrent migrate processes corrupt schema state.
+wait_for_log_line cfg-web "Running Gunicorn" "Config Service migrations (cfg-web entrypoint)"
+wait_for_log_line txs-worker-indexer "Setting up service" "Transaction Service migrations (txs-worker-indexer)"
+
 echo "==> $(date +%H:%M:%S) ==> Creating super-user for Safe Config Service (non-interactive)..."
 docker compose exec -T cfg-web python src/manage.py createsuperuser --noinput || true
 
