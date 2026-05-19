@@ -23,6 +23,14 @@ x-healthcheck-celery-template: &celeryhealthcheck
     timeout: 30s
     retries: 3
 
+x-healthcheck-rabbitmq-template: &rabbitmqhealthcheck
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 15s
+    timeout: 30s
+    retries: 3
+    start_period: 15s
+
 services:
   # Common nginx and database
   nginx:
@@ -38,6 +46,7 @@ services:
       - cfg-web
       - cgw-web
       - events-web
+      - ui
 
   txs-db:
     image: postgres:14-alpine
@@ -64,6 +73,14 @@ services:
       - ./data/events-db:/var/lib/postgresql/data
     <<: *pghealthcheck
 
+  cgw-db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data/cgw-db:/var/lib/postgresql/data
+    <<: *pghealthcheck
+
   # Safe Transaction Service
   txs-redis:
     image: redis:alpine
@@ -71,6 +88,7 @@ services:
 
   txs-rabbitmq:
     image: rabbitmq:alpine
+    <<: *rabbitmqhealthcheck
 
   txs-worker-indexer: &txs-worker
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
@@ -79,14 +97,15 @@ services:
     environment:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
       - RUN_MIGRATIONS=1
-      - WORKER_QUEUES=default,indexing
+      - WORKER_QUEUES=default,indexing,processing
     depends_on:
       txs-db:
         condition: service_healthy
       txs-redis:
         condition: service_healthy
+      txs-rabbitmq:
+        condition: service_healthy
     command: docker/web/celery/worker/run.sh
-    <<: *celeryhealthcheck
 
   txs-worker-contracts-tokens:
     <<: *txs-worker
@@ -95,7 +114,7 @@ services:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
       txs-worker-indexer:
-        condition: service_healthy
+        condition: service_started
 
   txs-worker-notifications-webhooks:
     <<: *txs-worker
@@ -104,7 +123,7 @@ services:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
       txs-worker-indexer:
-        condition: service_healthy
+        condition: service_started
 
   txs-web:
     image: safeglobal/safe-transaction-service:${TXS_VERSION}
@@ -113,12 +132,30 @@ services:
     environment:
       - ETHEREUM_NODE_URL=${RPC_NODE_URL}
     depends_on:
-      txs-worker-indexer:
+      txs-db:
+        condition: service_healthy
+      txs-redis:
+        condition: service_healthy
+      txs-rabbitmq:
         condition: service_healthy
     working_dir: /app
     volumes:
       - nginx-shared-txs:/nginx
     command: docker/web/run_web.sh
+    expose:
+      - "8888"
+
+  # Enriches TXS contract JSON so CGW Zod (ContractSchema) accepts local Transaction Service responses.
+  decoder-shim:
+    build: ./docker/decoder-shim
+    environment:
+      TXS_UPSTREAM_BASE_URL: http://txs-web:8888
+      PORT: "3001"
+    depends_on:
+      txs-web:
+        condition: service_started
+    expose:
+      - "3001"
 
   txs-scheduler:
     <<: *txs-worker
@@ -126,6 +163,8 @@ services:
       txs-db:
         condition: service_healthy
       txs-redis:
+        condition: service_healthy
+      txs-rabbitmq:
         condition: service_healthy
     command: docker/web/celery/scheduler/run.sh
 
@@ -140,6 +179,8 @@ services:
     depends_on:
       cfg-db:
         condition: service_healthy
+      cgw-db:
+        condition: service_healthy
 
   # Safe Client Gateway
   cgw-redis:
@@ -153,24 +194,25 @@ services:
     depends_on:
       cgw-redis:
         condition: service_healthy
+      cgw-db:
+        condition: service_healthy
+      decoder-shim:
+        condition: service_started
 
   ui:
     image: safeglobal/safe-wallet-web:${UI_VERSION}
     env_file:
       - container_env_files/ui.env
-    depends_on:
-      - nginx
+    environment:
+      # Startup runs a Next.js build; the default V8 heap is often too small in Docker.
+      - NODE_OPTIONS=--max-old-space-size=16384
+ 
     expose:
       - 8080
 
   general-rabbitmq:
     image: rabbitmq:alpine
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 15s
-      timeout: 30s
-      retries: 3
-      start_period: 15s
+    <<: *rabbitmqhealthcheck
 
   events-web:
     image: safeglobal/safe-events-service:${EVENTS_VERSION}
