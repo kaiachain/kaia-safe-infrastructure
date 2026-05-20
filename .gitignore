@@ -2,3 +2,5 @@
 .DS_Store
 .idea/
 data/
+node_modules/
+scripts/__pycache__

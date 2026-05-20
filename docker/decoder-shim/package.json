@@ -1,0 +1,9 @@
+{
+  "name": "cgw-data-decoder-shim",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2"
+  }
+}

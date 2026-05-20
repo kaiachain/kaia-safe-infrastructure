@@ -95,10 +95,16 @@ For the Events service, follow these steps:
 - Leave chains field blank
 - Enable every webhook option and click `Save`
 
-# Safe Web App
+# Safe Web App (separate deployment)
 
-The Safe Web app will be available at at http://localhost:8000/ although check the output of `docker compose` to see that the container is already running, as in some step-ups, it can take longer than expected ( >15 minutes).
+This stack runs **backend APIs only** by default (`/cgw`, `/cfg`, `/txs`, `/events`). `http://localhost:8000/` returns a short JSON status payload.
 
-Add your `NEXT_PUBLIC_INFURA_TOKEN` value if its required for the chain RCP uri in the [container_env_files/ui.env](../container_env_files/ui.env) file.
+Run the wallet UI from **kaia-safe-wallet-web** (e.g. `yarn workspace @safe-global/web dev`) and point it at `http://localhost:8000/cgw`.
 
-Additionally, the Safe Web app itself, defines which instance of the Safe CGW to use in this [container_env_files/ui.env](../container_env_files/ui.env) file. The value of `NEXT_PUBLIC_GATEWAY_URL_PRODUCTION` defines the URL where the Safe CGW can be reached. The default in this repo, points to the instance running as part of the `docker-compose.yml` file, but can be adjusted to point to our production instances, or your own hosted instance.
+**Legacy bundled UI** (optional, not recommended):
+
+```bash
+docker compose --profile ui up -d
+```
+
+Set `UI_VERSION` in `.env` and configure [container_env_files/ui.env](../container_env_files/ui.env). The container is exposed on `http://localhost:${UI_HOST_PORT:-3001}/` (first start can take **15+ minutes** for the Next.js build).
