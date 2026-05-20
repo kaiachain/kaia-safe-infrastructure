@@ -50,7 +50,8 @@ Edit `.env`:
 | `CFG_VERSION` | Safe Config Service image tag | `v2.94.2` |
 | `CGW_VERSION` | Client Gateway image tag | `v1.109.0` |
 | `TXS_VERSION` | Transaction Service image tag | `v6.3.0` |
-| `UI_VERSION` | Safe Wallet Web image tag | `v1.88.0` |
+| `UI_VERSION` | Legacy bundled UI image tag (`--profile ui` only) | commented out in `.env.sample` |
+| `UI_HOST_PORT` | Host port for legacy bundled UI | `3001` |
 | `EVENTS_VERSION` | Events Service image tag | `v1.3.0` |
 
 **Important:** Keep pinned versions aligned. Mixing `latest` tags can break the Web app (`/v2/chains`) vs Config API compatibility.
@@ -356,12 +357,14 @@ curl -s http://localhost:8000/cgw/v1/chains | jq '.[0].chainId'
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Safe Wallet Web | http://localhost:8000/ | — |
+| Safe Wallet Web (kaia-safe-wallet-web) | run locally, e.g. http://localhost:3000 | — |
+| Legacy bundled UI (`--profile ui`) | http://localhost:3001/ | — |
+| Backend status | http://localhost:8000/ | JSON only |
 | CFG admin | http://localhost:8000/cfg/admin/ | `root` / `admin` |
 | TXS admin | http://localhost:8000/txs/admin/ | `root` / `admin` |
 | Events admin | http://localhost:8000/events/admin/ | `admin@safe` / `password` |
 
-The UI container runs a Next.js build on first start and may take **15+ minutes**.
+The legacy bundled UI (`docker compose --profile ui`) runs a Next.js build on first start and may take **15+ minutes**.
 
 ---
 
@@ -369,7 +372,7 @@ The UI container runs a Next.js build on first start and may take **15+ minutes*
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Blank Safe Web page | Features not linked to `WALLET_WEB` service | Re-run Step 6–7 or `./scripts/seed_kairos_chain_cfg.sh` |
+| Blank wallet UI (monorepo dev) | Features not linked to `WALLET_WEB` service or wrong CGW URL | Re-run Step 6–7 or `./scripts/seed_kairos_chain_cfg.sh`; set `NEXT_PUBLIC_GATEWAY_URL_PRODUCTION=http://localhost:8000/cgw` |
 | `/v2/chains` empty or 404 | Missing Service rows | Step 6 |
 | TXS not indexing | Wrong `RPC_NODE_URL` or missing MasterCopies | Step 1 + Step 8 |
 | Migration errors / corrupt schema | Concurrent migrate or stale volume | `RESET_VOLUMES=1 ./scripts/run_locally.sh` |

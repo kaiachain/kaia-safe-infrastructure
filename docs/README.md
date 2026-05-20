@@ -17,8 +17,8 @@ The setup presented here, assumes that only L2 safes will be used. Last stable v
 CFG_VERSION=v2.60.0
 CGW_VERSION=v0.4.1
 TXS_VERSION=v4.6.1
-UI_VERSION=v1.2.0
 EVENTS_VERSION=v0.5.0
+# UI_VERSION is only for optional legacy bundled UI: docker compose --profile ui up
 ```
 
 You can change them to the version you are interested available in [docker-hub](https://hub.docker.com/u/safeglobal) but be aware that not all versions of the services are compatible with each other, so do so **at your own risk.**

@@ -46,7 +46,6 @@ services:
       - cfg-web
       - cgw-web
       - events-web
-      - ui
 
   txs-db:
     image: postgres:14-alpine
@@ -184,6 +183,7 @@ services:
         condition: service_healthy
 
   ui:
+    profiles: ["ui"]
     image: safeglobal/safe-wallet-web:${UI_VERSION}
     env_file:
       - container_env_files/ui.env
@@ -191,8 +191,8 @@ services:
       # Startup runs a Next.js build; the default V8 heap is often too small in Docker.
       - NODE_OPTIONS=--max-old-space-size=16384
  
-    expose:
-      - 8080
+    ports:
+      - "${UI_HOST_PORT:-3001}:8080"
 
   general-rabbitmq:
     image: rabbitmq:alpine

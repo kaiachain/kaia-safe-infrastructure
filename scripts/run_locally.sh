@@ -88,6 +88,7 @@ docker compose exec -T txs-web python manage.py createsuperuser --noinput || tru
 echo "==> $(date +%H:%M:%S) ==> Seeding Kaia Kairos master copies + trusted contracts in Transaction Service..."
 bash "${SCRIPTS_DIR}/seed_kairos_txs_contracts.sh" || true
 
-echo "==> $(date +%H:%M:%S) ==> Done! Stack is running at http://localhost:${REVERSE_PROXY_PORT:-8000}"
+echo "==> $(date +%H:%M:%S) ==> Done! Backend APIs at http://localhost:${REVERSE_PROXY_PORT:-8000} (/cgw, /cfg, /txs, /events)"
+echo "==> Wallet UI: run kaia-safe-wallet-web locally (not bundled in this compose stack)"
 echo "==> CFG admin:  http://localhost:${REVERSE_PROXY_PORT:-8000}/cfg/admin/  (user: root / pass: admin)"
 echo "==> TXS admin:  http://localhost:${REVERSE_PROXY_PORT:-8000}/txs/admin/  (user: root / pass: admin)"
