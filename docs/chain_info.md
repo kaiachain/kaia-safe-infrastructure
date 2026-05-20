@@ -12,6 +12,10 @@ At any point, if you see a value that you are unsure how to supply, just look at
 
 These values are meant to be provided in the admin panel `http://localhost:8000/cfg/admin` of the Safe Config Service (CFG)
 
+## EIP-3770 Shortnames
+
+They must match the ones in the [Safe SDK repo](https://github.com/safe-global/safe-core-sdk/blob/main/packages/protocol-kit/src/utils/eip-3770/config.ts).
+
 ## Connecting the Safe Client Gateway (CGW) to the Safe Transaction Service (TXS)
 
 The CGW can forward requests to many independently running TXS instances pointing to different chains. The CFG has to keep a registry of every available instance of the TXS.
@@ -47,3 +51,15 @@ For the web app to be able to render links correctly you need to supply URLs wit
 ```
 
 The `{{address}}` (Ethereum address `0x` prefixed) and `{{txHash}}` (transaction hash) are markers in the URL acting as placeholders that the Safe web app will use to replace values to construct links to block explorer corresponding to that chain. It is important that you indicate these correctly so links are valid at the moment of rendering.
+
+## Features
+
+Add and Enable the following features to your chain:
+
+- `MY_ACCOUNTS	`
+- `SPENDING_LIMIT`
+- `SAFE_APPS`
+- `ERC1155`
+- `ERC721`
+- `DOMAIN_LOOKUP`
+- `CONTRACT_INTERACTION`
