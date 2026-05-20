@@ -32,14 +32,20 @@ import urllib.request
 DEFAULT_API_BASE = os.environ.get("KAIASCAN_API_BASE", "https://kairos-oapi.kaiascan.io/api").rstrip("/")
 DEFAULT_RPC = os.environ.get("KAIROS_RPC_URI", "https://public-en-kairos.node.kaia.io")
 
-# Addresses aligned with scripts/seed_kairos_chain_cfg.sh and seed_kairos_txs_contracts.sh
+# Addresses aligned with scripts/seed_kairos_chain_cfg.sh and seed_kairos_txs_contracts.sh.
+# Includes both the legacy v1.3.0 contracts deployed early on Kairos and the canonical v1.5.0 set.
 LABELLED_ADDRESSES: list[tuple[str, str]] = [
+    # v1.3.0 legacy (deployed early on Kairos — tracked in TXS history_safemastercopy / history_proxyfactory)
+    ("SAFE_L2_V130", "0xfb1bffc9d739b8d520daf37df666da4c687191ea"),
+    ("PROXY_FACTORY_V130", "0xc22834581ebc8527d974f8a1c97e1bea4ef910bc"),
+    # v1.5.0 canonical (safe-global/safe-deployments PR 1462 — Kaia Kairos maps to canonical)
     ("SAFE_L2_SINGLETON", "0xEdd160fEBBD92E350D4D398fb636302fccd67C7e"),
     ("PROXY_FACTORY_V150", "0x14F2982D601c9458F93bd70B218933A6f8165e7b"),
     ("SAFE_V150_PRIMARY", "0xFf51A5898e281Db6DfC7855790607438dF2ca44b"),
     ("MULTI_SEND", "0x218543288004CD07832472D464648173c77D7eB7"),
     ("MULTI_SEND_CALL_ONLY", "0xA83c336B20401Af773B6219BA5027174338D1836"),
-    ("FALLBACK_HANDLER", "0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4"),
+    # CompatibilityFallbackHandler verified on kaiascan.io for Kairos
+    ("FALLBACK_HANDLER", "0x85a8ca358d388530ad0fb95d0cb89dd44fc242c3"),
     ("SIGN_MESSAGE_LIB", "0x4FfeF8222648872B3dE295Ba1e49110E61f5b5aa"),
     ("CREATE_CALL", "0x2Ef5ECfbea521449E4De05EDB1ce63B75eDA90B4"),
     ("SIMULATE_TX_ACCESSOR", "0x07EfA797c55B5DdE3698d876b277aBb6B893654C"),
@@ -116,8 +122,10 @@ def main() -> int:
         for label, addr, block_no, tx_hash, _creator in rows:
             print(f"{label.ljust(w)}  {block_no:<10}  {addr}  {tx_hash}")
 
-    # Env names map to seed_kairos_txs_contracts.sh
+    # Env names map to seed_kairos_txs_contracts.sh env overrides
     env_map = {
+        "SAFE_L2_V130": "SAFE_L2_V130_INITIAL_BLOCK",
+        "PROXY_FACTORY_V130": "PROXY_FACTORY_V130_INITIAL_BLOCK",
         "SAFE_L2_SINGLETON": "SAFE_L2_INITIAL_BLOCK",
         "PROXY_FACTORY_V150": "PROXY_FACTORY_INITIAL_BLOCK",
         "SAFE_V150_PRIMARY": "SAFE_V150_INITIAL_BLOCK",

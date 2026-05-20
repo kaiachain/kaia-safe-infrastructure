@@ -3,3 +3,4 @@
 .idea/
 data/
 node_modules/
+scripts/__pycache__
